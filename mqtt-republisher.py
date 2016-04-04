@@ -13,7 +13,7 @@ import time
 import socket
 import sys
 
-import mosquitto
+import paho.mqtt.client as paho
 import ConfigParser
 import setproctitle
 
@@ -28,12 +28,15 @@ MAPFILE = config.get("global", "mapfile")
 MQTT_HOST = config.get("global", "mqtt_host")
 MQTT_PORT = config.getint("global", "mqtt_port")
 MQTT_TOPIC = config.get("global", "mqtt_topic")
+MQTT_USER = config.get("global", "mqtt_user")
+MQTT_PWD = config.get("global", "mqtt_pwd")
 
 APPNAME = "mqtt-republisher"
 PRESENCETOPIC = "clients/" + socket.getfqdn() + "/" + APPNAME + "/state"
 setproctitle.setproctitle(APPNAME)
 client_id = APPNAME + "_%d" % os.getpid()
-mqttc = mosquitto.Mosquitto(client_id)
+mqttc = paho.Client(client_id)
+
 
 LOGFORMAT = '%(asctime)-15s %(message)s'
 
@@ -160,6 +163,11 @@ def cleanup(signum, frame):
     logging.info("Exiting on signal %d", signum)
     sys.exit(signum)
 
+def cleanup():
+    """
+    TK: Inserted to handle the non-argument calls to cleanup in the code above. I couldn't run it without it
+    """
+    sys.exit(0)
 
 def connect():
     """
@@ -171,7 +179,7 @@ def connect():
     logging.debug("Connecting to %s:%s", MQTT_HOST, MQTT_PORT)
     # Set the Last Will and Testament (LWT) *before* connecting
     mqttc.will_set(PRESENCETOPIC, "0", qos=0, retain=True)
-    result = mqttc.connect(MQTT_HOST, MQTT_PORT, 60, True)
+    result = mqttc.connect(MQTT_HOST, MQTT_PORT, 60)
     if result != 0:
         logging.info("Connection failed with error code %s. Retrying", result)
         time.sleep(10)
@@ -228,6 +236,8 @@ signal.signal(signal.SIGTERM, cleanup)
 signal.signal(signal.SIGINT, cleanup)
 
 # Connect to the broker
+logging.debug("set user: %s", MQTT_USER)
+mqttc.username_pw_set(MQTT_USER,MQTT_PWD)
 connect()
 
 # Try to loop_forever until interrupted
